@@ -758,7 +758,7 @@ let currentBookId=null, currentStudentId=null;
 
 async function boot(){
   updateSoundBtn();
-  if(API_URL === 'PASTE_YOUR_WEB_APP_URL_HERE'){ toast('⚠️ Not connected yet — paste your Apps Script URL into API_URL', true); }
+  if(API_URL === 'https://script.google.com/macros/s/AKfycbwvaP7xyIpch0e1LhhfV_Oj0vYnKuhjN8NEJrdQcN2AkkKniL7tRzFOM2hnPjblLdH8/exec''){ toast('⚠️ Not connected yet — paste your Apps Script URL into API_URL', true); }
   await refreshAll();
   checkDailyLock();
   document.getElementById('setting-name').value = settings.libraryName;
