@@ -740,8 +740,8 @@ function speak(key, queue){
 }
 
 /* ================= API layer ================= */
-const API_URL = 'PASTE_YOUR_WEB_APP_URL_HERE';
-const API_KEY = 'PASTE_YOUR_SECRET_KEY_HERE'; // must match the apiKey row in your Settings sheet
+const API_URL = 'https://script.google.com/macros/s/AKfycbxfaoboliOcJtT6EqT3mE9tvGvH23j99syzU0w2qrt1xzLGq2gdqwVmJlqa8X1mxDAf/exec';
+const API_KEY = 'duishgisugoseiuhgiahsguiawhsguiahsirutyuaishvdhvbzxvhxklvbjbzlifhgnivsrjhghseghdfiahgfgialhgaiugshviuasbdfaicwlsecvawieusataasiuafhawbcaiwlkcbbwaescneailsgseruvhgseghyrthshiacniacaowciaciuruautueaetiwetuawuieiruatyecbcvcnsesrytrfialncmbvvmvxmzvxmvvvcrfieruiofetalzvsjdfzsfjkdzdkjkczjzkkisdjtuisdhufjzsdclzlieirieutrytureyeioseruitsetueiruteirtuei'; // must match the apiKey row in your Settings sheet
 async function apiCall(action, payload={}){
   let res;
   try{
@@ -762,8 +762,8 @@ async function testConnection(){
   box.textContent = 'Testing...';
   const lines = [];
   lines.push('API_URL: ' + API_URL);
-  lines.push('API_KEY set: ' + (API_KEY && API_KEY !== 'PASTE_YOUR_SECRET_KEY_HERE' ? 'yes' : 'NO — still a placeholder!'));
-  if(API_URL === 'PASTE_YOUR_WEB_APP_URL_HERE'){
+  lines.push('API_KEY set: ' + (API_KEY && API_KEY !== 'duishgisugoseiuhgiahsguiawhsguiahsirutyuaishvdhvbzxvhxklvbjbzlifhgnivsrjhghseghdfiahgfgialhgaiugshviuasbdfaicwlsecvawieusataasiuafhawbcaiwlkcbbwaescneailsgseruvhgseghyrthshiacniacaowciaciuruautueaetiwetuawuieiruatyecbcvcnsesrytrfialncmbvvmvxmzvxmvvvcrfieruiofetalzvsjdfzsfjkdzdkjkczjzkkisdjtuisdhufjzsdclzlieirieutrytureyeioseruitsetueiruteirtuei' ? 'yes' : 'NO — still a placeholder!'));
+  if(API_URL === 'https://script.google.com/macros/s/AKfycbxfaoboliOcJtT6EqT3mE9tvGvH23j99syzU0w2qrt1xzLGq2gdqwVmJlqa8X1mxDAf/exec'){
     lines.push('\\n❌ API_URL is still the placeholder text. Paste your real /exec URL into the code.');
     box.textContent = lines.join('\\n');
     return;
@@ -804,7 +804,7 @@ let currentBookId=null, currentStudentId=null;
 
 async function boot(){
   updateSoundBtn();
-  if(API_URL === 'PASTE_YOUR_WEB_APP_URL_HERE'){ toast('⚠️ Not connected yet — paste your Apps Script URL into API_URL', true); }
+  if(API_URL === 'https://script.google.com/macros/s/AKfycbxfaoboliOcJtT6EqT3mE9tvGvH23j99syzU0w2qrt1xzLGq2gdqwVmJlqa8X1mxDAf/exec'){ toast('⚠️ Not connected yet — paste your Apps Script URL into API_URL', true); }
   await refreshAll();
   checkDailyLock();
   document.getElementById('setting-name').value = settings.libraryName;
