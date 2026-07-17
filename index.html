@@ -435,6 +435,12 @@
       <hr style="border:none;border-top:2px solid var(--line);width:100%;">
       <p class="muted" data-i18n="excelExportNote"></p>
       <p class="muted" data-i18n="hostingNote"></p>
+      <hr style="border:none;border-top:2px solid var(--line);width:100%;">
+      <div>
+        <h4 style="font-family:var(--font-display);color:var(--coral);margin:0 0 8px;" data-i18n="diagnosticsTitle"></h4>
+        <button class="btn secondary" id="test-connection-btn" data-i18n="testConnectionBtn"></button>
+        <div id="diagnostics-result" style="margin-top:12px;font-family:var(--font-mono);font-size:12px;white-space:pre-wrap;word-break:break-all;background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:10px;display:none;"></div>
+      </div>
     </div>
   </section>
 </div>
@@ -453,6 +459,10 @@
 <div class="modal-overlay hidden" id="book-modal">
   <div class="detail-modal">
     <h3 data-i18n="bookDetailTitle"></h3>
+    <div class="photo-upload">
+      <img class="preview" id="bd-photo-preview" src="">
+      <div><input type="file" accept="image/*" id="bd-photo-input"><p class="muted" data-i18n="bookPhotoNote"></p></div>
+    </div>
     <div class="qr-display"><div class="qr-thumb" id="book-detail-qr"></div><div class="code" id="book-detail-code"></div></div>
     <label data-i18n="thTitle"></label><input type="text" id="bd-title">
     <label data-i18n="thAuthor"></label><input type="text" id="bd-author">
@@ -634,6 +644,8 @@ const I18N = {
   saveSettingsBtn:{en:"💾 Save Settings",jp:"💾 設定を保存"},
   excelExportNote:{en:"Tip: open your Google Sheet anytime and use File → Download → Microsoft Excel for a full backup.",jp:"ヒント:Googleスプレッドシートを開いて「ファイル→ダウンロード→Excel」でバックアップできるよ。"},
   hostingNote:{en:"Note: a public GitHub Pages link can technically be viewed by anyone who has it, and the PINs above are a deterrent, not real security. For real access control, consider hosting via Google Sites restricted to your organization.",jp:"注意:公開GitHub PagesのリンクはURLを知っていれば誰でも見られます。上記のPINは抑止力であり、完全なセキュリティではありません。本当にアクセスを制限したい場合は、組織内限定のGoogleサイトでの公開をおすすめします。"},
+  diagnosticsTitle:{en:"🔧 Connection Test",jp:"🔧 接続テスト"},
+  testConnectionBtn:{en:"Test Connection",jp:"接続をテストする"},
   pinTitle:{en:"Librarian PIN",jp:"司書PIN"},
   unlockBtn:{en:"Unlock 🔓",jp:"解除 🔓"},
   pinCancel:{en:"Cancel",jp:"キャンセル"},
@@ -645,6 +657,7 @@ const I18N = {
   deleteBtn:{en:"🗑️ Delete",jp:"🗑️ 削除"},
   closeBtn:{en:"Close",jp:"閉じる"},
   photoNote:{en:"Upload a photo (optional)",jp:"写真をアップロード(なくてもOK)"},
+  bookPhotoNote:{en:"Upload a cover photo (optional)",jp:"表紙の写真をアップロード(なくてもOK)"},
   perStudentReminders:{en:"Reminders for this player",jp:"このプレイヤーのリマインダー"},
   borrowHistoryTitle:{en:"Borrow History",jp:"貸出履歴"},
   printProfileBtn:{en:"🖨️ Print Report",jp:"🖨️ レポートを印刷"},
@@ -727,13 +740,46 @@ function speak(key, queue){
 }
 
 /* ================= API layer ================= */
-const API_URL = 'https://script.google.com/macros/s/AKfycbwvaP7xyIpch0e1LhhfV_Oj0vYnKuhjN8NEJrdQcN2AkkKniL7tRzFOM2hnPjblLdH8/exec';
-const API_KEY = 'duishgisugoseiuhgiahsguiawhsguiahsirutyuaishvdhvbzxvhxklvbjbzlifhgnivsrjhghseghdfiahgfgialhgaiugshviuasbdfaicwlsecvawieusataasiuafhawbcaiwlkcbbwaescneailsgseruvhgseghyrthshiacniacaowciaciuruautueaetiwetuawuieiruatyecbcvcnsesrytrfialncmbvvmvxmzvxmvvvcrfieruiofetalzvsjdfzsfjkdzdkjkczjzkkisdjtuisdhufjzsdclzlieirieutrytureyeioseruitsetueiruteirtuei'; // must match the apiKey row in your Settings sheet
+const API_URL = 'PASTE_YOUR_WEB_APP_URL_HERE';
+const API_KEY = 'PASTE_YOUR_SECRET_KEY_HERE'; // must match the apiKey row in your Settings sheet
 async function apiCall(action, payload={}){
-  const res = await fetch(API_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ action, key: API_KEY, ...payload }) });
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  return res.json();
+  let res;
+  try{
+    res = await fetch(API_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ action, key: API_KEY, ...payload }) });
+  }catch(networkErr){
+    throw new Error('NETWORK: could not reach API_URL at all (' + networkErr.message + ')');
+  }
+  if(!res.ok) throw new Error('HTTP ' + res.status + ' from the API URL — it responded, but with an error status.');
+  let data;
+  try{ data = await res.json(); }
+  catch(parseErr){ throw new Error('BAD_RESPONSE: the URL responded but not with JSON — check it ends in /exec and access is set to Anyone.'); }
+  if(data && data.success===false && data.error==='unauthorized') throw new Error('UNAUTHORIZED: API_KEY in this file does not match the apiKey row in your Settings sheet.');
+  return data;
 }
+async function testConnection(){
+  const box = document.getElementById('diagnostics-result');
+  box.style.display = 'block';
+  box.textContent = 'Testing...';
+  const lines = [];
+  lines.push('API_URL: ' + API_URL);
+  lines.push('API_KEY set: ' + (API_KEY && API_KEY !== 'PASTE_YOUR_SECRET_KEY_HERE' ? 'yes' : 'NO — still a placeholder!'));
+  if(API_URL === 'PASTE_YOUR_WEB_APP_URL_HERE'){
+    lines.push('\\n❌ API_URL is still the placeholder text. Paste your real /exec URL into the code.');
+    box.textContent = lines.join('\\n');
+    return;
+  }
+  try{
+    const data = await apiCall('getAll');
+    lines.push('\\n✅ Connected successfully!');
+    lines.push('Students: ' + (data.students||[]).length);
+    lines.push('Books: ' + (data.books||[]).length);
+    lines.push('Transactions: ' + (data.transactions||[]).length);
+  }catch(err){
+    lines.push('\\n❌ ' + err.message);
+  }
+  box.textContent = lines.join('\\n');
+}
+document.getElementById('test-connection-btn').addEventListener('click', testConnection);
 async function refreshAll(){
   try{
     const data = await apiCall('getAll');
@@ -743,7 +789,7 @@ async function refreshAll(){
     reviews = data.reviews||[];
     settings = Object.assign(settings, data.settings||{});
     return true;
-  }catch(e){ console.error('refresh failed', e); toast(t('toastCantSave'), true); return false; }
+  }catch(e){ console.error('refresh failed', e); toast(t('toastCantSave') + ' — ' + e.message, true); return false; }
 }
 
 /* ================= state ================= */
@@ -758,7 +804,7 @@ let currentBookId=null, currentStudentId=null;
 
 async function boot(){
   updateSoundBtn();
-  if(API_URL === 'https://script.google.com/macros/s/AKfycbwvaP7xyIpch0e1LhhfV_Oj0vYnKuhjN8NEJrdQcN2AkkKniL7tRzFOM2hnPjblLdH8/exec'){ toast('⚠️ Not connected yet — paste your Apps Script URL into API_URL', true); }
+  if(API_URL === 'PASTE_YOUR_WEB_APP_URL_HERE'){ toast('⚠️ Not connected yet — paste your Apps Script URL into API_URL', true); }
   await refreshAll();
   checkDailyLock();
   document.getElementById('setting-name').value = settings.libraryName;
@@ -1078,7 +1124,8 @@ function renderSearchGrid(cat){
     const activeLoan = loans.find(l=>l.bookId===b.id && l.status==='active');
     const badge = activeLoan ? `<span class="badge out">${sub2('Borrowed','貸出中')}</span>` : `<span class="badge available">${t('badgeAvailable')}</span>`;
     const avg = avgRating(b.id);
-    return `<div class="book-card"><div class="bt">${escapeHtml(b.title)}</div><div class="ba">${escapeHtml(b.author||'')}${b.level?' · Lv'+escapeHtml(b.level):''}</div>${avg?`<div class="review-stars">${'★'.repeat(Math.round(avg))}${'☆'.repeat(5-Math.round(avg))} (${avg.toFixed(1)})</div>`:''}${badge}</div>`;
+    const cover = b.photo ? `<img src="${b.photo}" style="width:100%;height:100px;object-fit:cover;border-radius:10px;border:2px solid var(--line);margin-bottom:8px;">` : '';
+    return `<div class="book-card">${cover}<div class="bt">${escapeHtml(b.title)}</div><div class="ba">${escapeHtml(b.author||'')}${b.level?' · Lv'+escapeHtml(b.level):''}</div>${avg?`<div class="review-stars">${'★'.repeat(Math.round(avg))}${'☆'.repeat(5-Math.round(avg))} (${avg.toFixed(1)})</div>`:''}${badge}</div>`;
   }).join('');
 }
 function avgRating(bookId){
@@ -1181,19 +1228,24 @@ function renderCatalog(){
         ? `<span class="badge overdue">${sub2('Overdue — '+activeLoan.studentName,'期限切れ — '+activeLoan.studentName)}</span>`
         : `<span class="badge out">${sub2('With '+activeLoan.studentName,activeLoan.studentName+' さんが借用中')}</span>`;
     }
-    return `<tr class="clickable" data-book-id="${b.id}"><td><div class="qr-thumb" id="qr-row-${b.id}"></div></td><td>${escapeHtml(b.title)}</td><td>${escapeHtml(b.author||'—')}</td><td>${escapeHtml(b.category||'—')}</td><td style="font-family:var(--font-mono);font-size:12px;">${b.code}</td><td>${badge}</td></tr>`;
+    const thumb = b.photo ? `<img class="avatar-thumb" src="${b.photo}">` : `<div class="qr-thumb" id="qr-row-${b.id}"></div>`;
+    return `<tr class="clickable" data-book-id="${b.id}"><td>${thumb}</td><td>${escapeHtml(b.title)}</td><td>${escapeHtml(b.author||'—')}</td><td>${escapeHtml(b.category||'—')}</td><td style="font-family:var(--font-mono);font-size:12px;">${b.code}</td><td>${badge}</td></tr>`;
   }).join('');
-  list.forEach(b=>{ const el=document.getElementById('qr-row-'+b.id); if(el) new QRCode(el,{text:b.code,width:42,height:42,correctLevel:QRCode.CorrectLevel.M}); });
+  list.forEach(b=>{ if(!b.photo){ const el=document.getElementById('qr-row-'+b.id); if(el) new QRCode(el,{text:b.code,width:42,height:42,correctLevel:QRCode.CorrectLevel.M}); } });
   body.querySelectorAll('tr[data-book-id]').forEach(row=>{
     row.addEventListener('click', ()=>openBookModal(row.dataset.bookId));
   });
 }
 
 /* ---- book detail modal ---- */
+let pendingBookPhotoDataUrl = null;
 function openBookModal(id){
   const b = books[id];
   if(!b) return;
   currentBookId = id;
+  pendingBookPhotoDataUrl = null;
+  document.getElementById('bd-photo-preview').src = b.photo || '';
+  document.getElementById('bd-photo-preview').style.background = b.photo ? 'transparent' : '#FBF3C7';
   document.getElementById('bd-title').value = b.title||'';
   document.getElementById('bd-author').value = b.author||'';
   document.getElementById('bd-category').value = b.category||'';
@@ -1210,9 +1262,30 @@ function openBookModal(id){
     ${r.comment?`<div class="muted">${escapeHtml(r.comment)}</div>`:''}</div>`).join('') : `<p class="muted">${t('noReviewsYet')}</p>`;
   document.getElementById('book-modal').classList.remove('hidden');
 }
+document.getElementById('bd-photo-input').addEventListener('change', function(){
+  const file = this.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const img = new Image();
+    img.onload = function(){
+      const maxSize = 260;
+      let w = img.width, h = img.height;
+      if(w>h){ if(w>maxSize){ h*=maxSize/w; w=maxSize; } } else { if(h>maxSize){ w*=maxSize/h; h=maxSize; } }
+      const canvas = document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      pendingBookPhotoDataUrl = canvas.toDataURL('image/jpeg', 0.72);
+      document.getElementById('bd-photo-preview').src = pendingBookPhotoDataUrl;
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
 document.getElementById('bd-close-btn').addEventListener('click', ()=>document.getElementById('book-modal').classList.add('hidden'));
 document.getElementById('bd-save-btn').addEventListener('click', async ()=>{
   const payload = { id: currentBookId, title:document.getElementById('bd-title').value.trim(), author:document.getElementById('bd-author').value.trim(), category:document.getElementById('bd-category').value.trim(), level:document.getElementById('bd-level').value.trim(), shelf:document.getElementById('bd-shelf').value.trim() };
+  if(pendingBookPhotoDataUrl) payload.photo = pendingBookPhotoDataUrl;
   const res = await apiCall('updateBook', payload).catch(()=>({success:false}));
   if(res.success){ toast(t('toastSaved')); await refreshAll(); renderAll(); document.getElementById('book-modal').classList.add('hidden'); }
   else { toast(t('toastCantSave'), true); }
