@@ -13,8 +13,26 @@ function sheet_(name, headers){
   if(!sh){ sh = ss.insertSheet(name); sh.appendRow(headers); }
   return sh;
 }
-function studentsSheet_(){ return sheet_('Students', ['id','code','name','grade','parentEmail','photo','remindersEnabled','createdAt']); }
-function booksSheet_(){ return sheet_('Books', ['id','code','title','author','category','level','shelf','createdAt']); }
+function ensureColumn_(sh, name){
+  const lastCol = Math.max(sh.getLastColumn(),1);
+  const headers = sh.getRange(1,1,1,lastCol).getValues()[0];
+  if(headers.indexOf(name)===-1){
+    sh.getRange(1, lastCol+1).setValue(name);
+  }
+}
+function studentsSheet_(){
+  const sh = sheet_('Students', ['id','code','name','grade','parentEmail','photo','remindersEnabled','createdAt','archived']);
+  ensureColumn_(sh, 'photo');
+  ensureColumn_(sh, 'remindersEnabled');
+  ensureColumn_(sh, 'archived');
+  return sh;
+}
+function booksSheet_(){
+  const sh = sheet_('Books', ['id','code','title','author','category','level','shelf','photo','createdAt','archived']);
+  ensureColumn_(sh, 'photo');
+  ensureColumn_(sh, 'archived');
+  return sh;
+}
 function txSheet_(){ return sheet_('Transactions', ['id','studentId','studentName','bookId','bookTitle','borrowedAt','dueAt','returnedAt','status','lastReminderAt']); }
 function reviewsSheet_(){ return sheet_('Reviews', ['id','bookId','bookTitle','studentId','studentName','rating','comment','createdAt']); }
 function settingsSheet_(){ return sheet_('Settings', ['key','value']); }
@@ -111,9 +129,9 @@ function doPost(e){
 
 function getAll_(){
   return {
-    students: rowsToObjects_(studentsSheet_()),
-    books: rowsToObjects_(booksSheet_()),
-    transactions: rowsToObjects_(txSheet_()),
+    students: rowsToObjects_(studentsSheet_()).filter(s=> s.archived!==true && s.archived!=='true'),
+    books: rowsToObjects_(booksSheet_()).filter(b=> b.archived!==true && b.archived!=='true'),
+    transactions: rowsToObjects_(txSheet_()).filter(tx=> tx.status!=='deleted'),
     reviews: rowsToObjects_(reviewsSheet_()),
     settings: getSettings_()
   };
@@ -123,7 +141,10 @@ function getAll_(){
 function addStudent_(body){
   const sh = studentsSheet_();
   const id = genId_(), code = genCode_('ST');
-  sh.appendRow([id, code, body.name||'', body.grade||'', body.parentEmail||'', body.photo||'', true, new Date().toISOString()]);
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  const values = { id, code, name:body.name||'', grade:body.grade||'', parentEmail:body.parentEmail||'', photo:body.photo||'', remindersEnabled:true, createdAt:new Date().toISOString() };
+  const row = headers.map(h => values[h]!==undefined ? values[h] : '');
+  sh.appendRow(row);
   return {success:true, student:{id,code,name:body.name,grade:body.grade,parentEmail:body.parentEmail}};
 }
 function updateStudent_(body){
@@ -143,7 +164,8 @@ function deleteStudent_(id){
   if(idx===-1) return {success:false, error:'not_found'};
   const txs = rowsToObjects_(txSheet_());
   if(txs.some(t=>t.studentId===id && t.status==='active')) return {success:false, error:'has_active_loan'};
-  sh.deleteRow(idx);
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  sh.getRange(idx, headers.indexOf('archived')+1).setValue(true);
   return {success:true};
 }
 
@@ -151,8 +173,11 @@ function deleteStudent_(id){
 function addBook_(body){
   const sh = booksSheet_();
   const id = genId_(), code = genCode_('BK');
-  sh.appendRow([id, code, body.title||'', body.author||'', body.category||'', body.level||'', body.shelf||'', new Date().toISOString()]);
-  return {success:true, book:{id,code,title:body.title,author:body.author,category:body.category,level:body.level,shelf:body.shelf}};
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  const values = { id, code, title:body.title||'', author:body.author||'', category:body.category||'', level:body.level||'', shelf:body.shelf||'', photo:body.photo||'', createdAt:new Date().toISOString() };
+  const row = headers.map(h => values[h]!==undefined ? values[h] : '');
+  sh.appendRow(row);
+  return {success:true, book:{id,code,title:body.title,author:body.author,category:body.category,level:body.level,shelf:body.shelf,photo:body.photo}};
 }
 function updateBook_(body){
   const sh = booksSheet_();
@@ -160,7 +185,7 @@ function updateBook_(body){
   if(idx===-1) return {success:false, error:'not_found'};
   const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
   const row = sh.getRange(idx,1,1,headers.length).getValues()[0];
-  const map = {title:body.title, author:body.author, category:body.category, level:body.level, shelf:body.shelf};
+  const map = {title:body.title, author:body.author, category:body.category, level:body.level, shelf:body.shelf, photo:body.photo};
   headers.forEach((h,i)=>{ if(map[h]!==undefined && map[h]!==null) row[i]=map[h]; });
   sh.getRange(idx,1,1,headers.length).setValues([row]);
   return {success:true};
@@ -171,7 +196,8 @@ function deleteBook_(id){
   if(idx===-1) return {success:false, error:'not_found'};
   const txs = rowsToObjects_(txSheet_());
   if(txs.some(t=>t.bookId===id && t.status==='active')) return {success:false, error:'has_active_loan'};
-  sh.deleteRow(idx);
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  sh.getRange(idx, headers.indexOf('archived')+1).setValue(true);
   return {success:true};
 }
 
@@ -214,7 +240,8 @@ function deleteTransaction_(id){
   const sh = txSheet_();
   const idx = findRowIndex_(sh,0,id);
   if(idx===-1) return {success:false, error:'not_found'};
-  sh.deleteRow(idx);
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  sh.getRange(idx, headers.indexOf('status')+1).setValue('deleted');
   return {success:true};
 }
 
