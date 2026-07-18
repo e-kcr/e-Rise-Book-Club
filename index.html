@@ -437,6 +437,12 @@
       <p class="muted" data-i18n="hostingNote"></p>
       <hr style="border:none;border-top:2px solid var(--line);width:100%;">
       <div>
+        <h4 style="font-family:var(--font-display);color:var(--coral);margin:0 0 8px;" data-i18n="archivedTitle"></h4>
+        <p class="muted" data-i18n="archivedNote"></p>
+        <button class="btn secondary" id="open-archived-btn" data-i18n="viewArchivedBtn"></button>
+      </div>
+      <hr style="border:none;border-top:2px solid var(--line);width:100%;">
+      <div>
         <h4 style="font-family:var(--font-display);color:var(--coral);margin:0 0 8px;" data-i18n="diagnosticsTitle"></h4>
         <button class="btn secondary" id="test-connection-btn" data-i18n="testConnectionBtn"></button>
         <div id="diagnostics-result" style="margin-top:12px;font-family:var(--font-mono);font-size:12px;white-space:pre-wrap;word-break:break-all;background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:10px;display:none;"></div>
@@ -507,6 +513,26 @@
       <button class="btn danger" id="sd-delete-btn" data-i18n="deleteBtn"></button>
       <button class="btn secondary" id="sd-close-btn" data-i18n="closeBtn"></button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="archived-modal">
+  <div class="detail-modal">
+    <h3 data-i18n="archivedTitle"></h3>
+    <p class="muted" data-i18n="archivedNote"></p>
+    <div style="margin-top:14px;">
+      <h4 style="font-family:var(--font-display);color:var(--coral);margin:0 0 8px;" data-i18n="navPlayers"></h4>
+      <div id="archived-students-list"></div>
+    </div>
+    <div style="margin-top:18px;">
+      <h4 style="font-family:var(--font-display);color:var(--coral);margin:0 0 8px;" data-i18n="navBooks"></h4>
+      <div id="archived-books-list"></div>
+    </div>
+    <div style="margin-top:18px;">
+      <h4 style="font-family:var(--font-display);color:var(--coral);margin:0 0 8px;" data-i18n="navHistory"></h4>
+      <div id="archived-transactions-list"></div>
+    </div>
+    <div class="detail-actions"><button class="btn secondary" id="archived-close-btn" data-i18n="closeBtn"></button></div>
   </div>
 </div>
 
@@ -646,6 +672,12 @@ const I18N = {
   hostingNote:{en:"Note: a public GitHub Pages link can technically be viewed by anyone who has it, and the PINs above are a deterrent, not real security. For real access control, consider hosting via Google Sites restricted to your organization.",jp:"注意:公開GitHub PagesのリンクはURLを知っていれば誰でも見られます。上記のPINは抑止力であり、完全なセキュリティではありません。本当にアクセスを制限したい場合は、組織内限定のGoogleサイトでの公開をおすすめします。"},
   diagnosticsTitle:{en:"🔧 Connection Test",jp:"🔧 接続テスト"},
   testConnectionBtn:{en:"Test Connection",jp:"接続をテストする"},
+  archivedTitle:{en:"🗄️ Archived Items",jp:"🗄️ アーカイブ済みアイテム"},
+  archivedNote:{en:"Deleted students, books, and records aren't erased — they're hidden here and can be restored anytime.",jp:"削除されたプレイヤー・本・記録は消えていません。ここに保管されていて、いつでも復元できます。"},
+  viewArchivedBtn:{en:"View Archived Items",jp:"アーカイブを見る"},
+  restoreBtn:{en:"↩️ Restore",jp:"↩️ 復元"},
+  noArchivedItems:{en:"Nothing archived here",jp:"アーカイブはまだないよ"},
+  toastRestored:{en:"Restored ✅",jp:"復元したよ✅"},
   pinTitle:{en:"Librarian PIN",jp:"司書PIN"},
   unlockBtn:{en:"Unlock 🔓",jp:"解除 🔓"},
   pinCancel:{en:"Cancel",jp:"キャンセル"},
@@ -780,6 +812,34 @@ async function testConnection(){
   box.textContent = lines.join('\\n');
 }
 document.getElementById('test-connection-btn').addEventListener('click', testConnection);
+
+/* ================= archived items ================= */
+document.getElementById('open-archived-btn').addEventListener('click', openArchivedModal);
+document.getElementById('archived-close-btn').addEventListener('click', ()=>document.getElementById('archived-modal').classList.add('hidden'));
+async function openArchivedModal(){
+  document.getElementById('archived-modal').classList.remove('hidden');
+  document.getElementById('archived-students-list').innerHTML = '...';
+  document.getElementById('archived-books-list').innerHTML = '...';
+  document.getElementById('archived-transactions-list').innerHTML = '...';
+  const data = await apiCall('getArchived').catch(()=>null);
+  if(!data){ toast(t('toastCantSave'), true); return; }
+  renderArchivedList('archived-students-list', data.students, s=>escapeHtml(s.name), 'restoreStudent');
+  renderArchivedList('archived-books-list', data.books, b=>escapeHtml(b.title), 'restoreBook');
+  renderArchivedList('archived-transactions-list', data.transactions, tx=>`${escapeHtml(tx.studentName)} — ${escapeHtml(tx.bookTitle)}`, 'restoreTransaction');
+}
+function renderArchivedList(containerId, items, labelFn, restoreAction){
+  const el = document.getElementById(containerId);
+  if(!items || !items.length){ el.innerHTML = `<p class="muted">${t('noArchivedItems')}</p>`; return; }
+  el.innerHTML = items.map(item=>`<div class="review-item" style="display:flex;justify-content:space-between;align-items:center;">
+    <span>${labelFn(item)}</span>
+    <button class="btn small secondary" onclick="restoreArchived('${restoreAction}','${item.id}')">${tp('restoreBtn')}</button>
+  </div>`).join('');
+}
+window.restoreArchived = async function(action, id){
+  const res = await apiCall(action, {id}).catch(()=>({success:false}));
+  if(res.success){ toast(t('toastRestored')); await refreshAll(); renderAll(); openArchivedModal(); }
+  else { toast(t('toastCantSave'), true); }
+};
 async function refreshAll(){
   try{
     const data = await apiCall('getAll');
