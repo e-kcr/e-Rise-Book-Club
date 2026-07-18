@@ -33,7 +33,11 @@ function booksSheet_(){
   ensureColumn_(sh, 'archived');
   return sh;
 }
-function txSheet_(){ return sheet_('Transactions', ['id','studentId','studentName','bookId','bookTitle','borrowedAt','dueAt','returnedAt','status','lastReminderAt']); }
+function txSheet_(){
+  const sh = sheet_('Transactions', ['id','studentId','studentName','bookId','bookTitle','borrowedAt','dueAt','returnedAt','status','lastReminderAt','preDeleteStatus']);
+  ensureColumn_(sh, 'preDeleteStatus');
+  return sh;
+}
 function reviewsSheet_(){ return sheet_('Reviews', ['id','bookId','bookTitle','studentId','studentName','rating','comment','createdAt']); }
 function settingsSheet_(){ return sheet_('Settings', ['key','value']); }
 
@@ -116,6 +120,10 @@ function doPost(e){
       case 'borrow': return respond_(borrow_(body));
       case 'returnBook': return respond_(returnBook_(body));
       case 'deleteTransaction': return respond_(deleteTransaction_(body.id));
+      case 'getArchived': return respond_(getArchived_());
+      case 'restoreStudent': return respond_(restoreStudent_(body.id));
+      case 'restoreBook': return respond_(restoreBook_(body.id));
+      case 'restoreTransaction': return respond_(restoreTransaction_(body.id));
       case 'addReview': return respond_(addReview_(body));
       case 'saveSettings': saveSettings_(body.settings); return respond_({success:true});
       case 'installReminders': installReminders_(); return respond_({success:true});
@@ -241,8 +249,45 @@ function deleteTransaction_(id){
   const idx = findRowIndex_(sh,0,id);
   if(idx===-1) return {success:false, error:'not_found'};
   const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  const row = sh.getRange(idx,1,1,headers.length).getValues()[0];
+  const currentStatus = row[headers.indexOf('status')];
+  sh.getRange(idx, headers.indexOf('preDeleteStatus')+1).setValue(currentStatus);
   sh.getRange(idx, headers.indexOf('status')+1).setValue('deleted');
   return {success:true};
+}
+function restoreTransaction_(id){
+  const sh = txSheet_();
+  const idx = findRowIndex_(sh,0,id);
+  if(idx===-1) return {success:false, error:'not_found'};
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  const row = sh.getRange(idx,1,1,headers.length).getValues()[0];
+  const prevStatus = row[headers.indexOf('preDeleteStatus')] || 'returned';
+  sh.getRange(idx, headers.indexOf('status')+1).setValue(prevStatus);
+  sh.getRange(idx, headers.indexOf('preDeleteStatus')+1).setValue('');
+  return {success:true};
+}
+function restoreStudent_(id){
+  const sh = studentsSheet_();
+  const idx = findRowIndex_(sh,0,id);
+  if(idx===-1) return {success:false, error:'not_found'};
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  sh.getRange(idx, headers.indexOf('archived')+1).setValue(false);
+  return {success:true};
+}
+function restoreBook_(id){
+  const sh = booksSheet_();
+  const idx = findRowIndex_(sh,0,id);
+  if(idx===-1) return {success:false, error:'not_found'};
+  const headers = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  sh.getRange(idx, headers.indexOf('archived')+1).setValue(false);
+  return {success:true};
+}
+function getArchived_(){
+  return {
+    students: rowsToObjects_(studentsSheet_()).filter(s=> s.archived===true || s.archived==='true'),
+    books: rowsToObjects_(booksSheet_()).filter(b=> b.archived===true || b.archived==='true'),
+    transactions: rowsToObjects_(txSheet_()).filter(tx=> tx.status==='deleted')
+  };
 }
 
 /* ---------- reviews ---------- */
